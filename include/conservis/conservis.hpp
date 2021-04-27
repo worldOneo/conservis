@@ -37,14 +37,6 @@
 
 namespace conservis
 {
-  template <typename Number, typename Mask>
-  static inline Number ensureMask(Number n, Mask mask)
-  {
-    if (n & (1 << mask))
-      return mask;
-    return -1;
-  }
-
   template <typename Number>
   static inline bool isBitSet(const Number number, const Number bit)
   {
@@ -61,6 +53,39 @@ namespace conservis
   static constexpr inline auto bitLength(const T n)
   {
     return bitLength<T>();
+  }
+
+  template <typename Number>
+  static inline int ensureMask(Number n, int mask)
+  {
+    if (n & (1 << mask))
+      return mask;
+    return -1;
+  }
+
+  template <typename Number>
+  static inline int ensureMaskU(Number n, int mask)
+  {
+    if (n & (1 << (bitLength<Number>() - mask - 1)))
+      return mask;
+    return -1;
+  }
+
+  /**
+   * Abs returns the absolute value of any number type.
+   * For unsigned types abs is a no-op.
+   * For int datatypes (or smaller) builtin abs is used.
+   */
+  template <typename Number>
+  static inline Number abs(const Number n)
+  {
+#if !_conservis_is_signed(Number) // if Number isn't signed it cant be negative
+    return n;
+#elif _conservis_builtin(__builtin_abs) // if the number is an int (or smaller) we can use builtins
+    if constexpr (_conservis_builtin_int(Number, <=))
+      return __builtin_abs(n);
+#endif
+    return n < 0 ? -n : n;
   }
 
   template <typename Number>
@@ -93,15 +118,27 @@ namespace conservis
   }
 
   template <typename Number>
-  static Number getMsbSetIndex(Number n)
+  static int msbSetIndex(Number n)
   {
 #if _conservis_builtin(__builtin_clz)
-    if constexpr (_conservis_builtin_int(Number, ==))
-      return ensureMask(n, __builtin_clz(n));
-    else if constexpr (_conservis_builtin_long(Number, ==))
-      return ensureMask(n, __builtin_clzl(n));
-    else if constexpr (_conservis_builtin_long_long(Number, ==))
-      return ensureMask(n, __builtin_clzll(n));
+    if constexpr (_conservis_is_signed(Number))
+    {
+      if constexpr (_conservis_builtin_int(Number, ==))
+        return ensureMask(n, __builtin_clz(n));
+      else if constexpr (_conservis_builtin_long(Number, ==))
+        return ensureMask(n, __builtin_clzl(n));
+      else if constexpr (_conservis_builtin_long_long(Number, ==))
+        return ensureMask(n, __builtin_clzll(n));
+    }
+    else
+    {
+      if constexpr (_conservis_builtin_int(Number, <=))
+        return ensureMaskU(n, __builtin_clz(n));
+      else if constexpr (_conservis_builtin_long(Number, <=))
+        return ensureMaskU(n, __builtin_clzl(n));
+      else if constexpr (_conservis_builtin_long_long(Number, <=))
+        return ensureMaskU(n, __builtin_clzll(n));
+    }
 
 #ifdef _GLIBCXX_USE_INT128
 #if __SIZEOF_LONG__ == 8
@@ -135,7 +172,7 @@ namespace conservis
     if constexpr (_conservis_is_signed(Number))
       n = abs(n);
 
-    Number cnt = 0;
+    int cnt = 0;
     Number max;
 
     if constexpr (_conservis_is_signed(Number))
@@ -150,7 +187,7 @@ namespace conservis
   }
 
   template <typename Number>
-  static Number getLsbSetIndex(Number n)
+  static int lsbSetIndex(Number n)
   {
 #if _conservis_builtin(__builtin_ctz)
     if constexpr (_conservis_builtin_int(Number, <=))
@@ -189,20 +226,6 @@ namespace conservis
       return countBitsSet((n & -n) - 1);
 
     return -1;
-  }
-
-  template <typename Number>
-  static Number abs(const Number n)
-  {
-    if constexpr (!_conservis_is_signed(Number))
-      return n;
-
-#if _conservis_builtin(__builtin_abs)
-    if constexpr (_conservis_builtin_int(Number, <=))
-      return __builtin_abs(n);
-#endif
-
-    return n < 0 ? -n : n;
   }
 
   template <typename ReturnNumType>

@@ -1,4 +1,3 @@
-#define _conservis_disable_builtins
 #include "conservis.hpp"
 #include <iostream>
 #include <bitset>
@@ -54,17 +53,25 @@ int main(int argc, char const *argv[])
   ASSERT_EQUAL(conservis::printBinaryLsbR((int32_t)-1), "-" + r_one_32);
 
   //lsb idx
-  ASSERT_EQUAL(conservis::getLsbSetIndex(0), -1);
-  ASSERT_EQUAL(conservis::getMsbSetIndex((uint16_t)0), (uint16_t)-1);
-  ASSERT_EQUAL(conservis::getLsbSetIndex(2), 1);
-  ASSERT_EQUAL(conservis::getLsbSetIndex(1 << 8), 8);
-  ASSERT_EQUAL(conservis::getLsbSetIndex<unsigned long>(1 << 8), 8);
+  ASSERT_EQUAL(conservis::lsbSetIndex(0), -1);
+  ASSERT_EQUAL(conservis::lsbSetIndex((uint16_t)0), -1);
+  ASSERT_EQUAL(conservis::lsbSetIndex((int16_t)0), -1);
+  ASSERT_EQUAL(conservis::lsbSetIndex(2), 1);
+  ASSERT_EQUAL(conservis::lsbSetIndex(1 << 8), 8);
+  ASSERT_EQUAL(conservis::lsbSetIndex<unsigned long>(1 << 8), 8);
+  ASSERT_EQUAL(conservis::lsbSetIndex<unsigned long>(0), -1);
+  ASSERT_EQUAL(conservis::lsbSetIndex<long>(0), (int)-1);
+
 
   //msb idx
-  ASSERT_EQUAL(conservis::getMsbSetIndex((int16_t)0), -1);
-  ASSERT_EQUAL(conservis::getMsbSetIndex((int16_t)2), 7);
-  ASSERT_EQUAL(conservis::getMsbSetIndex<int16_t>(1 << 8), 0);
-  ASSERT_EQUAL(conservis::getMsbSetIndex<unsigned long>(1 << 8), 55UL);
+  ASSERT_EQUAL(conservis::msbSetIndex(0), -1);
+  ASSERT_EQUAL(conservis::msbSetIndex((uint16_t)0), -1);
+  ASSERT_EQUAL(conservis::msbSetIndex((int16_t)0), -1);
+  ASSERT_EQUAL(conservis::msbSetIndex((int16_t)2), 7);
+  ASSERT_EQUAL(conservis::msbSetIndex<int16_t>(1 << 8), 0);
+  ASSERT_EQUAL(conservis::msbSetIndex<unsigned long>(1 << 8), 55);
+  ASSERT_EQUAL(conservis::msbSetIndex<unsigned long>(0), -1);
+  ASSERT_EQUAL(conservis::msbSetIndex<long>(0), (int)-1);
 
 
   // mix max
