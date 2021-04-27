@@ -3,31 +3,37 @@
 
 #include <string>
 
-#define _conservis_builtin_int(T) sizeof(T) <= sizeof(unsigned int)
-#define _conservis_builtin_long(T) sizeof(T) <= sizeof(unsigned long)
-#define _conservis_builtin_long_long(T) sizeof(T) <= sizeof(unsigned long long)
+#define _conservis_builtin_int(T, C) sizeof(T) C sizeof(unsigned int)
+#define _conservis_builtin_long(T, C) sizeof(T) C sizeof(unsigned long)
+#define _conservis_builtin_long_long(T, C) sizeof(T) C sizeof(unsigned long long)
+#define _conservis_is_signed(T) (((T)-1) < 0)
 
 // _conservis_has_hasbuiltin allows some preprocessor safety as __has_builtin is not support by widely used GCC versions
+#ifndef _conservis_disable_builtins
 #if __clang__
 #define _conservis_builtin(f) __has_builtin(f)
 #elif __GNUC__ > 9
 #define _conservis_builtin(f) __has_builtin(f)
 #else
 #define _conservis_builtin(f) true
-#pragma message "__has_builtin disabled"
+#pragma message "__has_builtin check disabled, your compiler doesn't support it, use clang or gcc10+ to ensure functionallity or define _conservis_disable_builtins"
+#endif
+#else
+#define _conservis_builtin(f) false
+#pragma message "builtin function are disabled, this might reduce performance"
 #endif
 
-
-
-#define _conservis_builtin_possibility(T, B, V)       \
-  if constexpr (_conservis_builtin_int(Number))       \
-    return B(V);                                      \
-                                                      \
-  if constexpr (_conservis_builtin_long(Number))      \
-    return B##l(V);                                   \
-                                                      \
-  if constexpr (_conservis_builtin_long_long(Number)) \
+#define _conservis_builtin_possibility_cmp(T, B, V, C) \
+  if constexpr (_conservis_builtin_int(T, C))          \
+    return B(V);                                       \
+                                                       \
+  if constexpr (_conservis_builtin_long(T, C))         \
+    return B##l(V);                                    \
+                                                       \
+  if constexpr (_conservis_builtin_long_long(T, C))    \
     return B##ll(V);
+
+#define _conservis_builtin_possibility(T, B, V) _conservis_builtin_possibility_cmp(T, B, V, <=)
 
 namespace conservis
 {
@@ -61,12 +67,12 @@ namespace conservis
       return __builtin_popcountl(n >> 64) + __builtin_popcountl(n);
 #elif __SIZEOF_LONG_LONG__ == 8
     if constexpr (sizeof(Number) == sizeof(__int128_t))
-      return __builtin_popcountll(n >> 64) + __builtin_popcountl(n);
+      return __builtin_popcountll(n >> 64) + __builtin_popcountll(n);
 #endif
 #endif
 #endif
 
-    if constexpr (std::numeric_limits<Number>::is_signed)
+    if constexpr (_conservis_is_signed(Number))
       n = abs(n);
 
     Number cnt = 0;
@@ -82,7 +88,7 @@ namespace conservis
   static Number getMsbSetIndex(Number n)
   {
 #if _conservis_builtin(__builtin_clz)
-    _conservis_builtin_possibility(Number, __builtin_clz, n);
+    _conservis_builtin_possibility_cmp(Number, __builtin_clz, n, ==);
 #ifdef _GLIBCXX_USE_INT128
 #if __SIZEOF_LONG__ == 8
     if constexpr (sizeof(Number) == sizeof(__int128_t))
@@ -109,10 +115,17 @@ namespace conservis
 #endif
 #endif
 #endif
-    if (n != 0)
-      return countBitsSet((n & -n) - 1);
+    if (n == 0)
+      return -1;
 
-    return ((Number)-1);
+    if constexpr (_conservis_is_signed(Number))
+      n = abs(n);
+    Number cnt = 0;
+    Number max = abs(((Number)1) << (bitLength<Number>() - 1));
+    while (!(n & (max >> cnt)))
+      cnt++;
+
+    return cnt;
   }
 
   template <typename Number>
@@ -149,12 +162,20 @@ namespace conservis
     if (n != 0)
       return countBitsSet((n & -n) - 1);
 
-    return ((Number)-1);
+    return -1;
   }
 
   template <typename Number>
-  static inline auto abs(const Number n)
+  static Number abs(const Number n)
   {
+    if constexpr (!_conservis_is_signed(Number))
+      return n;
+
+#if _conservis_builtin(__builtin_abs)
+    if constexpr (_conservis_builtin_int(Number, <=))
+      return __builtin_abs(n);
+#endif
+
     return n < 0 ? -n : n;
   }
 
@@ -231,8 +252,10 @@ namespace conservis
   }
 
 } //namespace conservis
+#undef _conservis_builtin
 #undef _conservis_builtin_int
 #undef _conservis_builtin_long
 #undef _conservis_builtin_long_long
 #undef _conservis_builtin_possibility
+#undef _conservis_is_signed
 #endif //_CONVERSIV_HPP
