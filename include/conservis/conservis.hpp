@@ -23,20 +23,28 @@
 #pragma message "builtin function are disabled, this might reduce performance"
 #endif
 
-#define _conservis_builtin_possibility_cmp(T, B, V, C) \
-  if constexpr (_conservis_builtin_int(T, C))          \
-    return B(V);                                       \
-                                                       \
-  if constexpr (_conservis_builtin_long(T, C))         \
-    return B##l(V);                                    \
-                                                       \
-  if constexpr (_conservis_builtin_long_long(T, C))    \
+#define _conservis_builtin_possibility_cmp(T, B, V, C)   \
+  if constexpr (_conservis_builtin_int(T, C))            \
+    return B(V);                                         \
+                                                         \
+  else if constexpr (_conservis_builtin_long(T, C))      \
+    return B##l(V);                                      \
+                                                         \
+  else if constexpr (_conservis_builtin_long_long(T, C)) \
     return B##ll(V);
 
 #define _conservis_builtin_possibility(T, B, V) _conservis_builtin_possibility_cmp(T, B, V, <=)
 
 namespace conservis
 {
+  template <typename Number, typename Mask>
+  static inline Number ensureMask(Number n, Mask mask)
+  {
+    if (n & (1 << mask))
+      return mask;
+    return -1;
+  }
+
   template <typename Number>
   static inline bool isBitSet(const Number number, const Number bit)
   {
@@ -88,7 +96,13 @@ namespace conservis
   static Number getMsbSetIndex(Number n)
   {
 #if _conservis_builtin(__builtin_clz)
-    _conservis_builtin_possibility_cmp(Number, __builtin_clz, n, ==);
+    if constexpr (_conservis_builtin_int(Number, ==))
+      return ensureMask(n, __builtin_clz(n));
+    else if constexpr (_conservis_builtin_long(Number, ==))
+      return ensureMask(n, __builtin_clzl(n));
+    else if constexpr (_conservis_builtin_long_long(Number, ==))
+      return ensureMask(n, __builtin_clzll(n));
+
 #ifdef _GLIBCXX_USE_INT128
 #if __SIZEOF_LONG__ == 8
     if constexpr (sizeof(Number) == sizeof(__int128_t))
@@ -99,7 +113,7 @@ namespace conservis
       Number second = __builtin_clzl(n >> 64);
       if (second)
         return second + 64;
-      return 0;
+      return -1;
     }
 #elif __SIZEOF_LONG_LONG__ == 8
     if constexpr (sizeof(Number) == sizeof(__int128_t))
@@ -110,7 +124,7 @@ namespace conservis
       Number second = __builtin_clzll(n >> 64);
       if (second)
         return second + 64;
-      return 0;
+      return -1;
     }
 #endif
 #endif
@@ -120,8 +134,15 @@ namespace conservis
 
     if constexpr (_conservis_is_signed(Number))
       n = abs(n);
+
     Number cnt = 0;
-    Number max = abs(((Number)1) << (bitLength<Number>() - 1));
+    Number max;
+
+    if constexpr (_conservis_is_signed(Number))
+      max = ((Number)1) << (bitLength<Number>() / 2);
+    else
+      max = ((Number)1) << (bitLength<Number>() - 1);
+
     while (!(n & (max >> cnt)))
       cnt++;
 
@@ -132,7 +153,12 @@ namespace conservis
   static Number getLsbSetIndex(Number n)
   {
 #if _conservis_builtin(__builtin_ctz)
-    _conservis_builtin_possibility(Number, __builtin_ctz, n);
+    if constexpr (_conservis_builtin_int(Number, <=))
+      return ensureMask(n, __builtin_ctz(n));
+    else if constexpr (_conservis_builtin_long(Number, <=))
+      return ensureMask(n, __builtin_ctzl(n));
+    else if constexpr (_conservis_builtin_long_long(Number, <=))
+      return ensureMask(n, __builtin_ctzll(n));
 #ifdef _GLIBCXX_USE_INT128
 #if __SIZEOF_LONG__ == 8
     if constexpr (sizeof(Number) == sizeof(__int128_t))
@@ -143,7 +169,7 @@ namespace conservis
       Number second = __builtin_ctzl(n >> 64);
       if (second)
         return second + 64;
-      return 0;
+      return -1;
     }
 #elif __SIZEOF_LONG_LONG__ == 8
     if constexpr (sizeof(Number) == sizeof(__int128_t))
@@ -154,7 +180,7 @@ namespace conservis
       Number second = __builtin_ctzll(n >> 64);
       if (second)
         return second + 64;
-      return 0;
+      return -1;
     }
 #endif
 #endif
