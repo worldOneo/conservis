@@ -55,6 +55,12 @@ namespace conservis
     return bitLength<T>();
   }
 
+  template <typename D, typename B>
+  static constexpr inline auto bitDiff()
+  {
+    return bitLength<B>() - bitLength<D>();
+  }
+
   template <typename Number>
   static inline int ensureMask(Number n, int mask)
   {
@@ -63,11 +69,17 @@ namespace conservis
     return -1;
   }
 
-  template <typename Number>
-  static inline int ensureMaskU(Number n, int mask)
+  template <typename Number, typename MaskedFrom>
+  static inline int ensureMaskMSB(Number n, int mask)
   {
-    if (n & (1 << (bitLength<Number>() - mask - 1)))
-      return mask;
+    int tMask = mask - bitDiff<Number, MaskedFrom>();
+    if (n & (1 << (bitLength<Number>() - tMask - 1)))
+    {
+      if constexpr (_conservis_is_signed(Number))
+        return tMask - (bitLength<Number>() / 2 - 1);
+      else
+        return tMask;
+    }
     return -1;
   }
 
@@ -79,12 +91,11 @@ namespace conservis
   template <typename Number>
   static inline Number abs(const Number n)
   {
-#if !_conservis_is_signed(Number) // if Number isn't signed it cant be negative
-    return n;
-#elif _conservis_builtin(__builtin_abs) // if the number is an int (or smaller) we can use builtins
-    if constexpr (_conservis_builtin_int(Number, <=))
-      return __builtin_abs(n);
-#endif
+    if constexpr (!_conservis_is_signed(Number)) // if Number isn't signed it cant be negative
+      return n;
+    else if constexpr (_conservis_builtin(__builtin_abs)) // if the number is an int (or smaller) we can use builtins
+      if constexpr (_conservis_builtin_int(Number, <=))
+        return __builtin_abs(n);
     return n < 0 ? -n : n;
   }
 
@@ -121,25 +132,12 @@ namespace conservis
   static int msbSetIndex(Number n)
   {
 #if _conservis_builtin(__builtin_clz)
-    if constexpr (_conservis_is_signed(Number))
-    {
-      if constexpr (_conservis_builtin_int(Number, ==))
-        return ensureMask(n, __builtin_clz(n));
-      else if constexpr (_conservis_builtin_long(Number, ==))
-        return ensureMask(n, __builtin_clzl(n));
-      else if constexpr (_conservis_builtin_long_long(Number, ==))
-        return ensureMask(n, __builtin_clzll(n));
-    }
-    else
-    {
-      if constexpr (_conservis_builtin_int(Number, <=))
-        return ensureMaskU(n, __builtin_clz(n));
-      else if constexpr (_conservis_builtin_long(Number, <=))
-        return ensureMaskU(n, __builtin_clzl(n));
-      else if constexpr (_conservis_builtin_long_long(Number, <=))
-        return ensureMaskU(n, __builtin_clzll(n));
-    }
-
+    if constexpr (_conservis_builtin_int(Number, <=))
+      return ensureMaskMSB<Number, unsigned int>(n, __builtin_clz(n));
+    else if constexpr (_conservis_builtin_long(Number, <=))
+      return ensureMaskMSB<Number, unsigned long>(n, __builtin_clzl(n));
+    else if constexpr (_conservis_builtin_long_long(Number, <=))
+      return ensureMaskMSB<Number, unsigned long long>(n, __builtin_clzll(n));
 #ifdef _GLIBCXX_USE_INT128
 #if __SIZEOF_LONG__ == 8
     if constexpr (sizeof(Number) == sizeof(__int128_t))
